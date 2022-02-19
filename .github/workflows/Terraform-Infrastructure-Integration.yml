@@ -65,13 +65,13 @@ jobs:
         id: plan
         if: github.event_name == 'pull_request'
         run: terraform plan -var-file="secret.tfvars"
-        continute-on-error: true # in case of error, continue running in order to display the plan in the following step
       
       # On PR events, comment on the PR with the terraform step statuses
       # Also displays the output of 'terraform plan' (id: plan)
+      # The always() allows this step to run regardless of whether the step above failed, as we want to see the errors outputted by 'terraform plan'
       - name: Update Pull Request With Terraform Step & Plan Outputs
         uses: actions/github-script@0.9.0
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         env:
           PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         with:
@@ -101,7 +101,7 @@ jobs:
       
       # Fail the workflow with an error if the outcome of 'terraform plan' is an error
       - name: Check For 'failure' In Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
+        if: steps.plan.outcome == 'failure' && always()
         run: exit 1
 
       # On PUSH events to the main branch, APPLY the generated Terraform plan
