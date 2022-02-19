@@ -1,0 +1,110 @@
+name: Terraform-Infrastructure-Integration
+
+on:
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+jobs:
+
+  terraform:
+
+    name: Terraform
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{secrets.TF_AZURE_CLIENT_SECRET}}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+
+      - uses: actions/checkout@v2
+
+      - name: Export GitHub Secrets To secret.tfvars
+        run: |
+          touch secret.tfvars
+          echo ARM_CLIENT_ID       = ${{ env.ARM_CLIENT_ID }}" >> secret.tfvars
+          echo ARM_CLIENT_SECRET   = ${{ env.ARM_CLIENT_SECRET }}" >> secret.tfvars
+          echo ARM_SUBSCRIPTION_ID = ${{ env.ARM_SUBSCRIPTION_ID }}" >> secret.tfvars
+          echo ARM_TENANT_ID       = ${{ env.ARM_TENANT_ID }}" >> secret.tfvars
+          cat secret.tfvars
+
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_SERVICE_PROVIDER_TOKEN }}
+
+      # Install Terraform & Terraform Cloud on the job woker + authenticate with the CLOUD TOKEN
+      - name: Install Terraform & Authenticate on Terraform Cloud
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.6
+          cli_config_credentials_token: ${{ secrets.TERRAFORM_CLOUD_TOKEN }}
+      
+      # Check that main.tf is consistently formatted
+      - name: Run 'terraform fmt'
+        id: fmt
+        run: terraform fmt -check
+      
+      # Init the .terraform.lock.hcl (contains init state for providers, resources, etc.)
+      - name: Run 'terraform init'
+        id: init
+        run: terraform init
+      
+      # Check that main.tf is syntactically correct & indented 
+      - name: Run 'terraform validate'
+        id: validate
+        run: terraform validate -no-color
+
+      # Generate Terraform plan on PR events.
+      # main.tf also defines a Cloud block, so this step triggers a remote plan run in Terraform Cloud 
+      # When the PR is merged, 'terraform apply' will run
+      - name: Run 'terraform plan'
+        id: plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -var-file="secret.tfvars"
+        continute-on-error: true # in case of error, continue running in order to display the plan in the following step
+      
+      # On PR events, comment on the PR with the terraform step statuses
+      # Also displays the output of 'terraform plan' (id: plan)
+      - name: Update Pull Request With Terraform Step & Plan Outputs
+        uses: actions/github-script@0.9.0
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+      
+      # Fail the workflow with an error if the outcome of 'terraform plan' is an error
+      - name: Check For 'failure' In Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      # On PUSH events to the main branch, APPLY the generated Terraform plan
+      - name: Run 'terraform apply'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -var-file="secret.tfvars"
