@@ -26,10 +26,10 @@ jobs:
       - name: Export GitHub Secrets To secret.tfvars
         run: |
           touch secret.tfvars
-          echo -e "ARM_CLIENT_ID       = \"${{ env.ARM_CLIENT_ID }}\"\n" >> secret.tfvars
-          echo -e "ARM_CLIENT_SECRET   = \"${{ env.ARM_CLIENT_SECRET }}\"\n" >> secret.tfvars
-          echo -e "ARM_SUBSCRIPTION_ID = \"${{ env.ARM_SUBSCRIPTION_ID }}\"\n" >> secret.tfvars
-          echo -e "ARM_TENANT_ID       = \"${{ env.ARM_TENANT_ID }}\"\n" >> secret.tfvars
+          echo -e "ARM_CLIENT_ID       = \"${{ env.ARM_CLIENT_ID }}\"" >> secret.tfvars
+          echo -e "ARM_CLIENT_SECRET   = \"${{ env.ARM_CLIENT_SECRET }}\"" >> secret.tfvars
+          echo -e "ARM_SUBSCRIPTION_ID = \"${{ env.ARM_SUBSCRIPTION_ID }}\"" >> secret.tfvars
+          echo -e "ARM_TENANT_ID       = \"${{ env.ARM_TENANT_ID }}\"" >> secret.tfvars
           cat secret.tfvars
 
       - uses: azure/login@v1
