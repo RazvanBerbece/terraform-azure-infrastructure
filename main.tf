@@ -40,3 +40,8 @@ resource "azurerm_resource_group" "rg2" {
   name     = "terraform-azure-infrastructure-rg-2"
   location = "centralus"
 }
+
+resource "azurerm_resource_group" "rg3" {
+  name     = "terraform-azure-infrastructure-rg-3"
+  location = "centralus"
+}
