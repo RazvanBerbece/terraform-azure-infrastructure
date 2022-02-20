@@ -32,7 +32,7 @@ provider "azurerm" {
 
 # CREATE RESOURCES #
 resource "azurerm_resource_group" "rg1" {
-  name     = "terraform-azure-infrastructure-rg"
+  name     = "terraform-azure-infrastructure-rg-1"
   location = "centralus"
 }
 
