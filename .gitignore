@@ -32,3 +32,4 @@ override.tf.json
 .env
 ASP.json
 secret.tfvars
+.DS_Store

@@ -1,8 +1,6 @@
 name: Terraform-Infrastructure-Integration
 
 on:
-  pull_request:
-    branches: [ main ]
   push:
     branches: [ main ]
 
@@ -12,7 +10,7 @@ jobs:
 
   terraform:
 
-    name: Terraform
+    name: Terraform Integration
     runs-on: ubuntu-latest
 
     env:
@@ -45,61 +43,17 @@ jobs:
           terraform_version: 1.1.6
           cli_config_credentials_token: ${{ secrets.TERRAFORM_CLOUD_TOKEN }}
       
-      # Check that main.tf is consistently formatted
-      - name: Run 'terraform fmt'
-        id: fmt
-        run: terraform fmt -check
-      
       # Init the .terraform.lock.hcl (contains init state for providers, resources, etc.)
       - name: Run 'terraform init'
         id: init
         run: terraform init
-      
-      # Check that main.tf is syntactically correct & indented 
-      - name: Run 'terraform validate'
-        id: validate
-        run: terraform validate -no-color
 
       # Generate Terraform plan on PR events.
       # main.tf also defines a Cloud block, so this step triggers a remote plan run in Terraform Cloud 
       # When the PR is merged, 'terraform apply' will run
       - name: Run 'terraform plan'
         id: plan
-        if: github.event_name == 'pull_request'
         run: terraform plan -var-file="secret.tfvars"
-      
-      # On PR events, comment on the PR with the terraform step statuses
-      # Also displays the output of 'terraform plan' (id: plan)
-      # The always() allows this step to run regardless of whether the step above failed, as we want to see the errors outputted by 'terraform plan'
-      - name: Update Pull Request With Terraform Step & Plan Outputs
-        uses: actions/github-script@0.9.0
-        if: github.event_name == 'pull_request' && always()
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GH_TOKEN }}
-          script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
       
       # Fail the workflow with an error if the outcome of 'terraform plan' is an error
       - name: Check For 'failure' In Terraform Plan Status
@@ -108,5 +62,5 @@ jobs:
 
       # On PUSH events to the main branch, APPLY the generated Terraform plan
       - name: Run 'terraform apply'
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve -var-file="secret.tfvars"
